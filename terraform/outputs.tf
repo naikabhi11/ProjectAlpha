@@ -1,3 +1,3 @@
-output "public_ip" {
-  value = aws_instance.mongodb.public_ip
+output "account_id" {
+  value = data.aws_caller_identity.current.account_id
 }
