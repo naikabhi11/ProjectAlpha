@@ -1,0 +1,56 @@
+---
+- name: Configure MongoDB Nodes
+  hosts: mongodb
+  become: yes
+  tasks:
+    - name: Configure mongod.conf to bind to all IPs
+      lineinfile:
+        path: /etc/mongod.conf
+        regexp: '^  bindIp: 127.0.0.1'
+        line: '  bindIp: 0.0.0.0'
+
+    - name: Enable replication in mongod.conf
+      blockinfile:
+        path: /etc/mongod.conf
+        insertafter: EOF
+        marker: "# {mark} ANSIBLE MANAGED BLOCK"
+        block: |
+          replication:
+            replSetName: "rs0"
+
+    - name: Start and enable mongod service
+      systemd:
+        name: mongod
+        state: restarted
+        enabled: yes
+
+- name: Initiate Replica Set
+  hosts: node1
+  become: yes
+  tasks:
+    - name: Wait for MongoDB to start
+      wait_for:
+        port: 27017
+        delay: 5
+        timeout: 30
+
+    - name: Check if replica set is already initialized
+      shell: mongosh --quiet --eval "rs.status().ok"
+      register: rs_status
+      failed_when: false
+      changed_when: false
+
+    - name: Initiate replica set
+      shell: |
+        mongosh --quiet --eval 'rs.initiate({
+          _id: "rs0",
+          members: [
+            { _id: 0, host: "{{ hostvars["node1"]["private_ip"] }}:27017" },
+            { _id: 1, host: "{{ hostvars["node2"]["private_ip"] }}:27017" },
+            { _id: 2, host: "{{ hostvars["node3"]["private_ip"] }}:27017" }
+          ]
+        })'
+      register: rs_initiate
+      when: rs_status.stdout != "1"
+      failed_when: "'already initialized' not in rs_initiate.stdout and rs_initiate.rc != 0"
+      changed_when: "'ok: 1' in rs_initiate.stdout or 'ok: 1' in rs_initiate.stderr"

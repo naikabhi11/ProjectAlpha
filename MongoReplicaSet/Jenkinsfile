@@ -1,0 +1,50 @@
+pipeline {
+    agent any
+
+    environment {
+        PATH = "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:\${env.PATH}"
+        AWS_DEFAULT_REGION = "ap-south-1"
+    }
+
+    stages {
+        stage('Packer Build') {
+            steps {
+                dir('packer') {
+                    sh 'packer init .'
+                    sh 'packer validate .'
+                    sh 'packer build mongodb.pkr.hcl'
+                }
+            }
+        }
+
+        stage('Terraform Apply') {
+            steps {
+                dir('terraform') {
+                    sh 'terraform init'
+                    sh 'terraform validate'
+                    sh 'terraform apply -auto-approve'
+                }
+            }
+        }
+
+        stage('Ansible Playbook') {
+            steps {
+                dir('ansible') {
+                    // Wait for instances to fully boot before connecting
+                    sh 'sleep 60'
+                    sh 'chmod 400 mongodb_cluster_key.pem || true'
+                    sh 'ansible-playbook playbook.yml'
+                }
+            }
+        }
+    }
+
+    post {
+        success {
+            echo 'MongoDB Replica Set successfully deployed!'
+        }
+        failure {
+            echo 'Pipeline failed. Please check the logs.'
+        }
+    }
+}
