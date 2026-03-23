@@ -9,7 +9,7 @@ pipeline {
     stages {
         stage('Packer Build') {
             steps {
-                dir('packer') {
+                dir('MongoReplicaSet/packer') {
                     sh 'packer init .'
                     sh 'packer validate .'
                     sh 'packer build mongodb.pkr.hcl'
@@ -19,7 +19,7 @@ pipeline {
 
         stage('Terraform Apply') {
             steps {
-                dir('terraform') {
+                dir('MongoReplicaSet/terraform') {
                     sh 'terraform init'
                     sh 'terraform validate'
                     sh 'terraform apply -auto-approve'
@@ -29,7 +29,7 @@ pipeline {
 
         stage('Ansible Playbook') {
             steps {
-                dir('ansible') {
+                dir('MongoReplicaSet/ansible') {
                     // Wait for instances to fully boot before connecting
                     sh 'sleep 60'
                     sh 'chmod 400 mongodb_cluster_key.pem || true'
